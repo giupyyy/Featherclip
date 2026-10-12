@@ -65,7 +65,7 @@ def build_cmd(cfg):
 
     devs = [d for d in cfg["audio_devices"] if d]
     for d in devs:
-        cmd += ["-thread_queue_size", "1024", "-use_wallclock_as_timestamps", "1",
+                cmd += ["-use_wallclock_as_timestamps", "1",
                 "-f", "dshow", "-audio_buffer_size", "50", "-i", "audio=" + d]
 
     maps = ["-map", "0:v"]
