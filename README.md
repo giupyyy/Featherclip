@@ -1,6 +1,6 @@
 # Featherclip
 
-Tiny background clipper for Windows. Press a hotkey and the last seconds of your screen and sound are saved as a video.
+Tiny background clipper for Windows. Press a hotkey and the last seconds of your entire screen / game and sound are saved as a video.
 
 ## Download
 
