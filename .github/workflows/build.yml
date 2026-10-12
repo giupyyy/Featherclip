@@ -3,6 +3,11 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+concurrency:
+  group: build
+  cancel-in-progress: true
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: windows-latest
@@ -11,8 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pyinstaller pystray Pillow
-      - run: pyinstaller --noconsole --onedir --name Featherclip --hidden-import pystray._win32 lowclip.pyw
+      - run: pip install pyinstaller pystray Pillow PyAudioWPatch
+      - run: pyinstaller --noconsole --onedir --name Featherclip --hidden-import pystray._win32 --collect-all pyaudiowpatch lowclip.pyw
       - name: Download ffmpeg
         shell: pwsh
         run: |
@@ -20,7 +25,15 @@ jobs:
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
           $f = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
           Copy-Item $f.FullName dist/Featherclip/ffmpeg.exe
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Featherclip-Windows
-          path: dist/Featherclip
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/Featherclip -DestinationPath Featherclip-Windows.zip
+      - name: Remove old release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete latest --yes --cleanup-tag
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create latest Featherclip-Windows.zip --title "Featherclip (latest)" --notes "Download Featherclip-Windows.zip below, unzip it and start Featherclip.exe." --target ${{ github.sha }}
