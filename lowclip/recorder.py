@@ -92,7 +92,7 @@ def build_cmd(cfg, loop=None):
         cmd += ["-vf", vf]
 
     cmd += ["-c:v", enc] + encoder_args(enc, int(cfg["bitrate_mbps"]))
-    cmd += ["-force_key_frames", f"expr:gte(t,n_forced*{seg})"]
+    cmd += ["-g", str(fps * seg), "-force_key_frames", f"expr:gte(t,n_forced*{seg})"]
     if n_audio:
         cmd += ["-c:a", "aac", "-b:a", f"{int(cfg['audio_bitrate_kbps'])}k"]
 
@@ -208,8 +208,17 @@ class Recorder:
                 pass
         segs.sort()
         seg = int(cfg["segment_seconds"])
-        need = math.ceil(int(cfg["clip_seconds"]) / seg) + 1
-        chosen = [p for _, p in segs[-need:]]
+        want = float(cfg["clip_seconds"])
+        # pick the newest segments until their REAL combined length reaches the wanted length
+        chosen, total = [], 0.0
+        for i in range(len(segs) - 1, -1, -1):
+            mt, p = segs[i]
+            d = (mt - segs[i - 1][0]) if i > 0 else float(seg)
+            chosen.append(p)
+            total += max(d, 0.0)
+            if total >= want:
+                break
+        chosen.reverse()
         if not chosen:
             return None
         lst = buf / "clip_list.txt"
@@ -220,10 +229,17 @@ class Recorder:
         lst.write_text("\n".join(lines) + "\n", "utf-8")
         out_dir = Path(cfg["clips_dir"])
         out_dir.mkdir(parents=True, exist_ok=True)
-        out = out_dir / f"Clip_{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}.mp4"
+        out = out_dir / f"Replay {datetime.datetime.now():%Y-%m-%d %H-%M-%S}.mp4"
         r = subprocess.run(
             [devices.find_ffmpeg(cfg), "-hide_banner", "-loglevel", "error", "-y",
              "-f", "concat", "-safe", "0", "-i", str(lst),
              "-c", "copy", "-movflags", "+faststart", str(out)],
             capture_output=True, creationflags=NO_WINDOW | BELOW_NORMAL)
-        return out if r.returncode == 0 and out.exists() else None
+        ok = r.returncode == 0 and out.exists()
+        try:
+            with open(config.APPDATA / "clips.log", "a", encoding="utf-8") as f:
+                f.write(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} segments={len(chosen)} "
+                        f"estimated={total:.1f}s wanted={want:.0f}s ok={ok} {out.name}\n")
+        except OSError:
+            pass
+        return out if ok else None
