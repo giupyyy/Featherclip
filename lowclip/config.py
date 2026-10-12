@@ -16,7 +16,9 @@ DEFAULTS = {
     "output_height": 0,               # 0 = native (cheapest). Scaling costs some CPU.
     "encoder": "auto",
     "draw_mouse": True,
-    "audio_devices": [],              # dshow device names
+    "desktop_audio": True,            # record everything you hear (WASAPI loopback)
+    "desktop_audio_device": "",       # "" = default playback device
+    "audio_devices": [],              # extra inputs, e.g. microphones (dshow names)
     "mix_audio": True,                # False = one audio track per device
     "audio_bitrate_kbps": 160,
     "clip_seconds": 30,

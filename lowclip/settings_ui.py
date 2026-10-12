@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import autostart, config, devices, hotkey
+from . import autostart, config, devices, hotkey, loopback
 
 ENCODERS = ["auto", "h264_nvenc", "hevc_nvenc", "h264_amf", "hevc_amf",
             "h264_qsv", "hevc_qsv", "libx264"]
@@ -13,7 +13,7 @@ def run():
     ff = devices.find_ffmpeg(cfg)
 
     root = tk.Tk()
-    root.title("LowClip settings")
+    root.title("Featherclip settings")
     root.resizable(False, False)
     main = ttk.Frame(root, padding=10)
     main.grid()
@@ -65,10 +65,21 @@ def run():
     ttk.Checkbutton(vid, text="Capture mouse cursor", variable=v_mouse).grid(row=7, column=0, columnspan=2, sticky="w")
 
     # ---------- audio
-    aud = section("Audio sources (DirectShow devices)", 1)
+    aud = section("Audio", 1)
+    v_desk = tk.BooleanVar(value=cfg["desktop_audio"])
+    ttk.Checkbutton(aud, text="Record desktop sound (everything you hear: game, music, voice chat)",
+                    variable=v_desk).grid(row=0, column=0, columnspan=2, sticky="w")
+    ttk.Label(aud, text="Playback device").grid(row=1, column=0, sticky="w")
+    DEFAULT_DEV = "Default playback device"
+    out_devs = loopback.list_output_devices()
+    c_out = ttk.Combobox(aud, values=[DEFAULT_DEV] + out_devs, state="readonly", width=44)
+    c_out.set(cfg["desktop_audio_device"] if cfg["desktop_audio_device"] in out_devs else DEFAULT_DEV)
+    c_out.grid(row=1, column=1, sticky="w")
+    ttk.Label(aud, text="Microphones / other inputs (optional, click to select):").grid(
+        row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
     audio_names = []
-    lb = tk.Listbox(aud, selectmode=tk.MULTIPLE, exportselection=False, height=6, width=60)
-    lb.grid(row=0, column=0, columnspan=2, sticky="ew")
+    lb = tk.Listbox(aud, selectmode=tk.MULTIPLE, exportselection=False, height=5, width=60)
+    lb.grid(row=3, column=0, columnspan=2, sticky="ew")
     v_mix = tk.BooleanVar(value=cfg["mix_audio"])
 
     def refresh_audio():
@@ -84,8 +95,11 @@ def run():
                 lb.selection_set(i)
 
     refresh_audio()
-    ttk.Button(aud, text="Refresh", command=lambda: (cfg.update(audio_devices=[audio_names[i] for i in lb.curselection()]), refresh_audio())).grid(row=1, column=0, sticky="w")
-    ttk.Checkbutton(aud, text="Mix into one track (off = one track per device)", variable=v_mix).grid(row=1, column=1, sticky="w")
+    ttk.Button(aud, text="Refresh list", command=lambda: (
+        cfg.update(audio_devices=[audio_names[i] for i in lb.curselection()]), refresh_audio())
+    ).grid(row=4, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(aud, text="Mix everything into one track (off = separate tracks)",
+                    variable=v_mix).grid(row=4, column=1, sticky="w", pady=(4, 0))
 
     # ---------- clips
     clp = section("Clips & storage", 2)
@@ -159,18 +173,20 @@ def run():
             fps, br = int(v_fps.get()), int(v_br.get())
             height = 0 if v_h.get() == "native" else int(v_h.get())
         except ValueError:
-            messagebox.showerror("LowClip", "Check hotkey and numeric fields.")
+            messagebox.showerror("Featherclip", "Check hotkey and numeric fields.")
             return
         if clip > buf:
-            messagebox.showerror("LowClip", "Clip length can't exceed buffer length.")
+            messagebox.showerror("Featherclip", "Clip length can't exceed buffer length.")
             return
         if v_type.get() == "window" and not c_win.get().strip():
-            messagebox.showerror("LowClip", "Pick or type a window title.")
+            messagebox.showerror("Featherclip", "Pick or type a window title.")
             return
         cfg.update({
             "source": {"type": v_type.get(), "monitor": c_mon.current(), "window_title": c_win.get()},
             "fps": fps, "bitrate_mbps": br, "output_height": height,
             "encoder": v_enc.get(), "draw_mouse": v_mouse.get(),
+            "desktop_audio": v_desk.get(),
+            "desktop_audio_device": "" if c_out.get() == DEFAULT_DEV else c_out.get(),
             "audio_devices": [audio_names[i] for i in lb.curselection()],
             "mix_audio": v_mix.get(),
             "clip_seconds": clip, "buffer_seconds": buf,
@@ -183,7 +199,7 @@ def run():
             autostart.set_enabled(v_auto.get())
         except OSError:
             pass
-        messagebox.showinfo("LowClip", "Saved. The background app applies it within a few seconds.")
+        messagebox.showinfo("Featherclip", "Saved. The background app applies it within a few seconds.")
         root.destroy()
 
     btns = ttk.Frame(main)

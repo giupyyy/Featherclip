@@ -38,7 +38,7 @@ class App:
     def notify(self, msg):
         if self.icon and self.cfg.get("notify", True):
             try:
-                self.icon.notify(msg, "LowClip")
+                self.icon.notify(msg, "Featherclip")
             except Exception:
                 pass
 
@@ -64,6 +64,8 @@ class App:
             if err:
                 self.notify(f"Could not start ffmpeg: {err}")
                 self.gave_up = True
+            elif self.rec.warning:
+                self.notify(self.rec.warning)
         self.update_icon()
 
     def clip(self):
@@ -139,7 +141,7 @@ class App:
             I("View ffmpeg log", self.open_log),
             I("Quit", self.quit),
         )
-        self.icon = pystray.Icon("LowClip", _icon_image("#e5484d"), "LowClip", menu)
+        self.icon = pystray.Icon("Featherclip", _icon_image("#e5484d"), "Featherclip", menu)
         self.icon.run(setup=lambda icon: (setattr(icon, "visible", True),
                                           threading.Thread(target=self.watch, daemon=True).start()))
 

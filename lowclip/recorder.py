@@ -37,7 +37,7 @@ def encoder_args(enc, mbps):
     return ["-preset", "veryfast", "-b:v", b, "-maxrate", b, "-bufsize", buf]
 
 
-def build_cmd(cfg):
+def build_cmd(cfg, loop=None):
     ff = devices.find_ffmpeg(cfg)
     enc = resolve_encoder(cfg)
     fps = int(cfg["fps"])
@@ -64,19 +64,27 @@ def build_cmd(cfg):
             vf = ",".join(chain)
 
     devs = [d for d in cfg["audio_devices"] if d]
+    if loop:
+        rate, ch, port = loop
+        cmd += ["-f", "s16le", "-ar", str(rate), "-ac", str(ch),
+                "-i", f"tcp://127.0.0.1:{port}"]
     for d in devs:
-                cmd += ["-use_wallclock_as_timestamps", "1",
+        cmd += ["-use_wallclock_as_timestamps", "1",
                 "-f", "dshow", "-audio_buffer_size", "50", "-i", "audio=" + d]
+    n_audio = len(devs) + (1 if loop else 0)
 
     maps = ["-map", "0:v"]
-    if devs:
-        fc = [f"[{i + 1}:a]aresample=async=1000[a{i}]" for i in range(len(devs))]
-        if len(devs) > 1 and cfg["mix_audio"]:
-            ins = "".join(f"[a{i}]" for i in range(len(devs)))
-            fc.append(f"{ins}amix=inputs={len(devs)}:duration=longest:normalize=0[aout]")
+    if n_audio:
+        fc = []
+        for i in range(n_audio):
+            extra = ",aformat=channel_layouts=stereo" if (loop and i == 0) else ""
+            fc.append(f"[{i + 1}:a]aresample=async=1000{extra}[a{i}]")
+        if n_audio > 1 and cfg["mix_audio"]:
+            ins = "".join(f"[a{i}]" for i in range(n_audio))
+            fc.append(f"{ins}amix=inputs={n_audio}:duration=longest:normalize=0[aout]")
             maps += ["-map", "[aout]"]
         else:
-            for i in range(len(devs)):
+            for i in range(n_audio):
                 maps += ["-map", f"[a{i}]"]
         cmd += ["-filter_complex", ";".join(fc)]
     cmd += maps
@@ -85,7 +93,7 @@ def build_cmd(cfg):
 
     cmd += ["-c:v", enc] + encoder_args(enc, int(cfg["bitrate_mbps"]))
     cmd += ["-force_key_frames", f"expr:gte(t,n_forced*{seg})"]
-    if devs:
+    if n_audio:
         cmd += ["-c:a", "aac", "-b:a", f"{int(cfg['audio_bitrate_kbps'])}k"]
 
     wrap = math.ceil(int(cfg["buffer_seconds"]) / seg) + 4
@@ -100,6 +108,8 @@ class Recorder:
         self.proc = None
         self.cfg = None
         self.started_at = 0.0
+        self.feeder = None
+        self.warning = ""
         self.lock = threading.Lock()
 
     def running(self):
@@ -118,9 +128,22 @@ class Recorder:
                 except OSError:
                     pass
             config.APPDATA.mkdir(parents=True, exist_ok=True)
+            self.warning = ""
+            loop = None
+            if cfg.get("desktop_audio"):
+                try:
+                    from .loopback import LoopbackFeeder
+                    self.feeder = LoopbackFeeder(cfg.get("desktop_audio_device", ""))
+                    loop = self.feeder.prepare()
+                except Exception as e:
+                    self.warning = f"Desktop sound unavailable: {e}"
+                    self.feeder = None
+                    loop = None
             try:
-                cmd = build_cmd(cfg)
+                cmd = build_cmd(cfg, loop)
                 log = open(config.LOG_PATH, "wb")
+                if self.warning:
+                    log.write(("# " + self.warning + "\n").encode("utf-8", "replace"))
                 log.write((" ".join(cmd) + "\n\n").encode("utf-8", "replace"))
                 log.flush()
                 self.proc = subprocess.Popen(
@@ -129,7 +152,10 @@ class Recorder:
                 log.close()
             except OSError as e:
                 self.proc = None
+                self._close_feeder()
                 return str(e)
+            if self.feeder:
+                self.feeder.start()
             self.started_at = time.time()
             return None
 
@@ -147,6 +173,12 @@ class Recorder:
                 p.wait(3)
             except Exception:
                 p.kill()
+        self._close_feeder()
+
+    def _close_feeder(self):
+        f, self.feeder = self.feeder, None
+        if f:
+            f.stop()
 
     def save_clip(self):
         """Stitch the newest segments into an mp4 without re-encoding."""
