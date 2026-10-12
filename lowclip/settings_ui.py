@@ -1,7 +1,8 @@
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import autostart, config, devices, hotkey, loopback
+from . import autostart, config, devices, hotkey, loopback, sounds
 
 ENCODERS = ["auto", "h264_nvenc", "hevc_nvenc", "h264_amf", "hevc_amf",
             "h264_qsv", "hevc_qsv", "libx264"]
@@ -167,7 +168,9 @@ def run():
         root.bind("<Key>", on_key)
 
     ttk.Button(msc, text="Set…", command=record_hotkey).grid(row=0, column=2)
-    ttk.Checkbutton(msc, text="Beep when clip is saved", variable=v_snd).grid(row=1, column=0, columnspan=3, sticky="w")
+    ttk.Checkbutton(msc, text="Play a sound when a clip is saved", variable=v_snd).grid(row=1, column=0, columnspan=2, sticky="w")
+    ttk.Button(msc, text="Test sound", command=lambda: threading.Thread(
+        target=sounds.play, args=("ok",), daemon=True).start()).grid(row=1, column=2)
     ttk.Checkbutton(msc, text="Show tray notification", variable=v_ntf).grid(row=2, column=0, columnspan=3, sticky="w")
     ttk.Checkbutton(msc, text="Start with Windows", variable=v_auto).grid(row=3, column=0, columnspan=3, sticky="w")
     ttk.Label(msc, text="ffmpeg path").grid(row=4, column=0, sticky="w")

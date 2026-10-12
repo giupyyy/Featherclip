@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 
-from . import autostart, config, fullscreen, hotkey, recorder
+from . import autostart, config, fullscreen, hotkey, recorder, sounds
 
 
 def _icon_image(color):
@@ -92,17 +92,24 @@ class App:
     def clip(self):
         threading.Thread(target=self._clip, daemon=True).start()
 
+    def _sound(self, kind):
+        if self.cfg.get("play_sound", True):
+            try:
+                sounds.play(kind)
+            except Exception:
+                pass
+
     def _clip(self):
         if not self.rec.running():
+            self._sound("fail")
             self.notify("Nothing to save: not recording right now")
             return
         out = self.rec.save_clip()
         if out:
-            if self.cfg["play_sound"]:
-                import winsound
-                winsound.Beep(1000, 90)
+            self._sound("ok")
             self.notify(f"Saved {out.name}")
         else:
+            self._sound("fail")
             self.notify("Clip failed (see ffmpeg.log)")
 
     def game_tick(self):
