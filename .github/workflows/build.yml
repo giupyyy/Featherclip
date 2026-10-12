@@ -1,0 +1,26 @@
+name: Build Featherclip
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyinstaller pystray Pillow
+      - run: pyinstaller --noconsole --onedir --name Featherclip --hidden-import pystray._win32 lowclip.pyw
+      - name: Download ffmpeg
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
+          $f = Get-ChildItem -Path ffmpeg_tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $f.FullName dist/Featherclip/ffmpeg.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Featherclip-Windows
+          path: dist/Featherclip
