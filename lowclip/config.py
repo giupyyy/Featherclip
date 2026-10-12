@@ -11,6 +11,9 @@ LOG_PATH = APPDATA / "ffmpeg.log"
 DEFAULTS = {
     "ffmpeg_path": "ffmpeg",          # "ffmpeg" = look next to the app, then PATH
     "source": {"type": "monitor", "monitor": 0, "window_title": ""},
+    "ignore_programs": ["chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "brave.exe",
+                        "vlc.exe", "explorer.exe", "featherclip.exe", "python.exe", "pythonw.exe"],
+    "game_linger_seconds": 30,        # keep buffering this long after leaving a game
     "fps": 60,
     "bitrate_mbps": 20,
     "output_height": 0,               # 0 = native (cheapest). Scaling costs some CPU.

@@ -25,33 +25,42 @@ def run():
         return f
 
     # ---------- video
-    vid = section("Video source", 0)
+    vid = section("What to record", 0)
     v_type = tk.StringVar(value=cfg["source"]["type"])
     mons = devices.list_monitors()
     mon_labels = [f"Monitor {i} — {w}x{h}" for i, (w, h, _, _) in enumerate(mons)] or ["Monitor 0"]
-    ttk.Radiobutton(vid, text="Monitor (GPU, cheapest)", value="monitor", variable=v_type).grid(row=0, column=0, sticky="w")
+    ttk.Radiobutton(vid, text="Game (automatic): records the screen of any fullscreen app",
+                    value="game", variable=v_type).grid(row=0, column=0, columnspan=2, sticky="w")
+    ttk.Radiobutton(vid, text="Whole monitor (always on)", value="monitor", variable=v_type).grid(row=1, column=0, sticky="w")
     c_mon = ttk.Combobox(vid, values=mon_labels, state="readonly", width=34)
     c_mon.current(min(int(cfg["source"]["monitor"]), len(mon_labels) - 1))
-    c_mon.grid(row=0, column=1, sticky="w")
-    ttk.Radiobutton(vid, text="Window (heavier, CPU)", value="window", variable=v_type).grid(row=1, column=0, sticky="w")
+    c_mon.grid(row=1, column=1, sticky="w")
+    ttk.Radiobutton(vid, text="Single window (heavier, CPU)", value="window", variable=v_type).grid(row=2, column=0, sticky="w")
     c_win = ttk.Combobox(vid, values=devices.list_windows(), width=34)
     c_win.set(cfg["source"]["window_title"])
-    c_win.grid(row=1, column=1, sticky="w")
+    c_win.grid(row=2, column=1, sticky="w")
+
+    v_ign = tk.StringVar(value=", ".join(cfg["ignore_programs"]))
+    v_ling = tk.StringVar(value=str(cfg["game_linger_seconds"]))
+    ttk.Label(vid, text="Game mode: ignore programs").grid(row=3, column=0, sticky="w", pady=(6, 0))
+    ttk.Entry(vid, textvariable=v_ign, width=46).grid(row=3, column=1, sticky="w", pady=(6, 0))
+    ttk.Label(vid, text="Game mode: keep recording after leaving (s)").grid(row=4, column=0, sticky="w")
+    ttk.Spinbox(vid, textvariable=v_ling, from_=0, to=600, width=8).grid(row=4, column=1, sticky="w")
 
     v_fps = tk.StringVar(value=str(cfg["fps"]))
     v_br = tk.StringVar(value=str(cfg["bitrate_mbps"]))
     v_h = tk.StringVar(value=str(cfg["output_height"] or "native"))
     v_enc = tk.StringVar(value=cfg["encoder"])
     v_mouse = tk.BooleanVar(value=cfg["draw_mouse"])
-    ttk.Label(vid, text="FPS").grid(row=2, column=0, sticky="w")
-    ttk.Combobox(vid, textvariable=v_fps, values=["30", "60", "90", "120", "144"], width=8).grid(row=2, column=1, sticky="w")
-    ttk.Label(vid, text="Bitrate (Mbit/s)").grid(row=3, column=0, sticky="w")
-    ttk.Spinbox(vid, textvariable=v_br, from_=2, to=100, width=8).grid(row=3, column=1, sticky="w")
-    ttk.Label(vid, text="Output height").grid(row=4, column=0, sticky="w")
-    ttk.Combobox(vid, textvariable=v_h, values=["native", "1440", "1080", "720"], width=8).grid(row=4, column=1, sticky="w")
-    ttk.Label(vid, text="Encoder").grid(row=5, column=0, sticky="w")
+    ttk.Label(vid, text="FPS").grid(row=5, column=0, sticky="w", pady=(6, 0))
+    ttk.Combobox(vid, textvariable=v_fps, values=["30", "60", "90", "120", "144"], width=8).grid(row=5, column=1, sticky="w", pady=(6, 0))
+    ttk.Label(vid, text="Bitrate (Mbit/s)").grid(row=6, column=0, sticky="w")
+    ttk.Spinbox(vid, textvariable=v_br, from_=2, to=100, width=8).grid(row=6, column=1, sticky="w")
+    ttk.Label(vid, text="Output height").grid(row=7, column=0, sticky="w")
+    ttk.Combobox(vid, textvariable=v_h, values=["native", "1440", "1080", "720"], width=8).grid(row=7, column=1, sticky="w")
+    ttk.Label(vid, text="Encoder").grid(row=8, column=0, sticky="w")
     enc_box = ttk.Combobox(vid, textvariable=v_enc, values=ENCODERS, width=14, state="readonly")
-    enc_box.grid(row=5, column=1, sticky="w")
+    enc_box.grid(row=8, column=1, sticky="w")
     enc_msg = tk.StringVar()
 
     def detect():
@@ -60,9 +69,9 @@ def run():
         found = devices.detect_encoders(ff)
         enc_msg.set("works: " + ", ".join(found) if found else "none found (is ffmpeg installed?)")
 
-    ttk.Button(vid, text="Test encoders", command=detect).grid(row=5, column=1, sticky="e")
-    ttk.Label(vid, textvariable=enc_msg, foreground="#666").grid(row=6, column=0, columnspan=2, sticky="w")
-    ttk.Checkbutton(vid, text="Capture mouse cursor", variable=v_mouse).grid(row=7, column=0, columnspan=2, sticky="w")
+    ttk.Button(vid, text="Test encoders", command=detect).grid(row=8, column=1, sticky="e")
+    ttk.Label(vid, textvariable=enc_msg, foreground="#666").grid(row=9, column=0, columnspan=2, sticky="w")
+    ttk.Checkbutton(vid, text="Capture mouse cursor", variable=v_mouse).grid(row=10, column=0, columnspan=2, sticky="w")
 
     # ---------- audio
     aud = section("Audio", 1)
@@ -169,6 +178,7 @@ def run():
     def save():
         try:
             hotkey.parse(v_hk.get())
+            linger = int(v_ling.get())
             clip, buf = int(v_clip.get()), int(v_buf.get())
             fps, br = int(v_fps.get()), int(v_br.get())
             height = 0 if v_h.get() == "native" else int(v_h.get())
@@ -183,6 +193,8 @@ def run():
             return
         cfg.update({
             "source": {"type": v_type.get(), "monitor": c_mon.current(), "window_title": c_win.get()},
+            "ignore_programs": [x.strip().lower() for x in v_ign.get().split(",") if x.strip()],
+            "game_linger_seconds": linger,
             "fps": fps, "bitrate_mbps": br, "output_height": height,
             "encoder": v_enc.get(), "draw_mouse": v_mouse.get(),
             "desktop_audio": v_desk.get(),

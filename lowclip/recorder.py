@@ -162,6 +162,18 @@ class Recorder:
     def stop(self):
         with self.lock:
             self._stop()
+            self._wipe()
+
+    def _wipe(self):
+        if not self.cfg:
+            return
+        buf = Path(self.cfg["buffer_dir"])
+        for pat in ("seg_*.ts", "clip_list.txt"):
+            for f in buf.glob(pat):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
 
     def _stop(self):
         p = self.proc
